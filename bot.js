@@ -18,7 +18,6 @@ bot.use(session());
 
 // ---- Main Menu ----
 bot.start(async (ctx) => {
-  // Save user if not exist
   const userRef = db.collection("users").doc(ctx.from.id.toString());
   const doc = await userRef.get();
   if(!doc.exists){
@@ -54,13 +53,11 @@ bot.hears('Download VCF', async (ctx) => {
     const userDoc = await db.collection("users").doc(ctx.from.id.toString()).get();
     if(!userDoc.exists) return ctx.reply("❌ You are not registered.");
 
-    // Check if user added at least 1 contact
     const contactsSnap = await db.collection("contacts")
       .where("addedBy", "==", ctx.from.id.toString())
       .get();
     if(contactsSnap.empty) return ctx.reply("❌ Add at least one contact first.");
 
-    // Check monthly VCF access
     const vcfDoc = await db.collection("master_vcf").doc("latest").get();
     const updatedAt = vcfDoc.data().updatedAt.toDate();
     if(userDoc.data().joinedAt.toDate() < updatedAt){
@@ -92,14 +89,12 @@ bot.on('text', async (ctx) => {
       if(!text.match(/^\+\d{6,15}$/)) return ctx.reply("❌ Invalid number format. Try again.");
       ctx.session.addContact.phone = text;
 
-      // Save to Firebase
       await db.collection('contacts').add({
         name: ctx.session.addContact.name,
         phone: ctx.session.addContact.phone,
         addedBy: ctx.from.id.toString()
       });
 
-      // Notify Admin
       await bot.telegram.sendMessage(config.ADMIN_ID, `New contact added:\nName: ${ctx.session.addContact.name}\nPhone: ${ctx.session.addContact.phone}`);
 
       ctx.reply(`✅ Contact saved: ${ctx.session.addContact.name} - ${ctx.session.addContact.phone}`);
@@ -120,15 +115,13 @@ cron.schedule('0 0 1 * *', async () => {
       vcfData += `BEGIN:VCARD\nVERSION:3.0\nFN:${c.name}\nTEL;TYPE=CELL:${c.phone}\nEND:VCARD\n`;
     });
 
-    // Save file
     const dir = './vcf';
     if(!fs.existsSync(dir)) fs.mkdirSync(dir);
     const fileName = `${dir}/master_contacts.vcf`;
     fs.writeFileSync(fileName, vcfData);
 
-    // Update Firestore
     await db.collection('master_vcf').doc('latest').set({
-      url: 'https://yourserver.com/vcf/master_contacts.vcf', // host file link
+      url: 'https://yourserver.com/vcf/master_contacts.vcf',
       updatedAt: admin.firestore.Timestamp.now()
     });
 
